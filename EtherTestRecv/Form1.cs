@@ -15,44 +15,35 @@ namespace EtherTestRecv
 {
     public partial class Form1 : Form
     {
-        ////受信設定
+        //受信設定
         private UdpClient udpClientRecv = null;
         private IAsyncResult recvState = null;
-        private IPEndPoint mitCastPoint = new IPEndPoint(IPAddress.Parse("239.0.0.0"), 0);
-        private byte[] recvBytes = new byte[3];
-        ////送信設定
-        private byte[] sendBytes = new byte[3] { 0x00, 0x25, 0xA2 };
+        //送信設定
         private UdpClient udpClientSend = null;
-        private IPEndPoint semdEndPoint = new IPEndPoint(IPAddress.Parse("192.168.1.208"), 30000);
+        private int remotePort = 30001;
+        private string remoteHost = "192.168.1.208";
 
         private System.Threading.Timer timer;
-        private bool recvBtnFlag = false;
+        private bool sendBtnFlag = false;
 
         public Form1()
         {
             InitializeComponent();
         }
-        private void btn_SendStart_Click(object sender, EventArgs e)
+        private void btn_RecvStart_Click(object sender, EventArgs e)
         {
-            if (recvBtnFlag)
+            if (sendBtnFlag)
             {
                 timer.Change(Timeout.Infinite, Timeout.Infinite);
-                RecvBtnAction(false, "受信開始");
+                SendBtnAction(false, "送信開始");
             }
             else
             {
-                RecvBtnAction(true, "受信終了");
-                
-                //送信設定
-                if (udpClientSend == null)
-                {
-                    udpClientSend = new UdpClient();
-                    udpClientSend.JoinMulticastGroup(mitCastPoint.Address, 50);
-                }
-                //受信設定
+                SendBtnAction(true, "送信終了");
+
                 if (udpClientRecv == null)
                 {
-                    udpClientRecv = new UdpClient(30001);
+                    udpClientRecv = new UdpClient(30000);
                 }
 
                 timer = new System.Threading.Timer(TimerProc);
@@ -61,10 +52,6 @@ namespace EtherTestRecv
         }
         private void TimerProc(object state)
         {
-            //送信
-            IAsyncResult sending = udpClientSend.BeginSend(sendBytes, sendBytes.Length, semdEndPoint, SendCallback, udpClientSend);
-
-            //受信開始
             if (recvState == null)
             {
                 recvState = udpClientRecv.BeginReceive(RecvCallback, udpClientRecv);
@@ -72,17 +59,23 @@ namespace EtherTestRecv
         }
         private void RecvCallback(IAsyncResult ar)
         {
-            recvState = null;   //受信解除
+            recvState = null;
             UdpClient udp = (UdpClient)ar.AsyncState;
             IPEndPoint remoteEP = null;
-            recvBytes = udp.EndReceive(ar, ref remoteEP);
-
+            byte[] recvBytes = udp.EndReceive(ar, ref remoteEP);
             string recvText = "";
             for (int i = 0; i < recvBytes.Length; i++)
             {
-                recvText += recvBytes[i] + ",";
+                recvText += recvBytes[i];
             }
+
             tbx_RecvData.BeginInvoke(new Action<string>(RecvTextShow), recvText);
+
+            if (udpClientSend == null)
+            {
+                udpClientSend = new UdpClient();
+            }
+            udpClientSend.BeginSend(recvBytes, recvBytes.Length, remoteHost, remotePort, SendCallback, udpClientSend);
         }
         private void SendCallback(IAsyncResult ar)
         {
@@ -91,10 +84,10 @@ namespace EtherTestRecv
         {
             tbx_RecvData.Text = str + "\r\n" + tbx_RecvData.Text;
         }
-        private void RecvBtnAction(bool flag, string text)
+        private void SendBtnAction(bool flag, string text)
         {
-            recvBtnFlag = flag;
-            btn_SendStart.Text = text;
-        }        
+            sendBtnFlag = flag;
+            btn_RecvStart.Text = text;
+        }
     }
 }
